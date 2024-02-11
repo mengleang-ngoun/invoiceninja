@@ -41,14 +41,16 @@ class CustomizePriceController extends BaseController
 
         foreach ($customizePrices as $customizePrice) {
             $product = $customizePrice->product()->first();
-            $product->price = $customizePrice->price;
-            $resource->push($product);
+            if ($product) {
+                $product->price = $customizePrice->price;
+                $resource->push($product);
+            }
         }
 
         $data = new Collection($resource, new ProductTransformer(), Product::class);
         $resource = $this->manager->createData($data)->toArray();
 
-        foreach($resource["data"] as &$entity){
+        foreach ($resource["data"] as &$entity) {
             $entity["documents"] = $entity["documents"]["data"];
         }
 
