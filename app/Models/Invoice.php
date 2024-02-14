@@ -358,6 +358,11 @@ class Invoice extends BaseModel
         return $this->hasMany(Task::class);
     }
 
+    public function products(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(InvoiceItemLine::class);
+    }
+
     /**
      * @return \Illuminate\Database\Eloquent\Relations\HasOne<Task>
      */

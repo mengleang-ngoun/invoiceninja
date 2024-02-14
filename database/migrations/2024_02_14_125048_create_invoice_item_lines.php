@@ -11,15 +11,17 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('customize_prices', function (Blueprint $table) {
+        Schema::create('invoice_item_lines', function (Blueprint $table) {
             $table->id();
-            $table->unsignedInteger('client_id');
+            $table->unsignedInteger('invoice_id');
             $table->unsignedInteger('product_id');
-            $table->decimal("price", 20, 6);
+            $table->decimal("quantity", 20, 6);
+            $table->decimal("cost", 20, 6);
+            $table->date("bought_at");
             $table->timestamps();
 
-            $table->foreign('client_id')->references('id')->on('clients')->onDelete('cascade');
-            $table->foreign('product_id')->references('id')->on('products')->onDelete('cascade');
+            $table->foreign('invoice_id')->references('id')->on('invoices');
+            $table->foreign('product_id')->references('id')->on('products');
         });
     }
 
@@ -28,6 +30,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('customize_costs');
+        Schema::dropIfExists('invoice_item_lines');
     }
 };

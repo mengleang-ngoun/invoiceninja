@@ -11,15 +11,19 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('customize_prices', function (Blueprint $table) {
+        Schema::create('promotions', function (Blueprint $table) {
             $table->id();
-            $table->unsignedInteger('client_id');
+            $table->string('promotion_name');
             $table->unsignedInteger('product_id');
-            $table->decimal("price", 20, 6);
+            $table->decimal('purchase_amount', 20, 6);
+            $table->unsignedInteger('offer_product_id');
+            $table->decimal('offer_quantity', 20, 6);
+            $table->date("start_date");
+            $table->date("end_date");
             $table->timestamps();
 
-            $table->foreign('client_id')->references('id')->on('clients')->onDelete('cascade');
             $table->foreign('product_id')->references('id')->on('products')->onDelete('cascade');
+            $table->foreign('offer_product_id')->references('id')->on('products')->onDelete('cascade');
         });
     }
 
@@ -28,6 +32,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('customize_costs');
+        Schema::dropIfExists('promotions');
     }
 };

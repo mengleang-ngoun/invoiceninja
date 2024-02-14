@@ -34,6 +34,8 @@ use App\Jobs\Invoice\UpdateReminders;
 use App\Jobs\Invoice\ZipInvoices;
 use App\Models\Account;
 use App\Models\Invoice;
+use App\Models\InvoiceItemLine;
+use App\Models\Product;
 use App\Models\Quote;
 use App\Repositories\InvoiceRepository;
 use App\Services\PdfMaker\PdfMerge;
@@ -43,6 +45,7 @@ use App\Transformers\QuoteTransformer;
 use App\Utils\Ninja;
 use App\Utils\Traits\MakesHash;
 use App\Utils\Traits\SavesDocuments;
+use Carbon\Carbon;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Storage;
@@ -221,11 +224,24 @@ class InvoiceController extends BaseController
 
         $invoice = $this->invoice_repo->save($request->all(), InvoiceFactory::create($user->company()->id, $user->id));
 
+        InvoiceItemLine::where('invoice_id', $invoice->id)->delete();
+        foreach ($invoice->line_items as $item) {
+            $product = Product::where('product_key', $item->product_key)->get()->first();
+            $product_line = InvoiceItemLine::firstOrCreate([
+                'invoice_id' => $invoice->id,
+                'product_id' => $product->id
+            ]);
+            $product_line->quantity = $item->quantity;
+            $product_line->cost = $item->cost;
+            $product_line->bought_at = Carbon::now()->toDateTimeString();
+            $product_line->save();
+        };
+
         $invoice = $invoice->service()
-                           ->fillDefaults()
-                           ->triggeredActions($request)
-                           ->adjustInventory()
-                           ->save();
+            ->fillDefaults()
+            ->triggeredActions($request)
+            ->adjustInventory()
+            ->save();
 
         event(new InvoiceWasCreated($invoice, $invoice->company, Ninja::eventVars($user ? $user->id : null)));
 
@@ -415,9 +431,34 @@ class InvoiceController extends BaseController
 
         $invoice = $this->invoice_repo->save($request->all(), $invoice);
 
+        InvoiceItemLine::where('invoice_id', $invoice->id)->delete();
+        foreach ($invoice->line_items as $item) {
+            $product = Product::where('product_key', $item->product_key)->get()->first();
+            $product_line = InvoiceItemLine::firstOrCreate([
+                'invoice_id' => $invoice->id,
+                'product_id' => $product->id
+            ]);
+            $product_line->quantity = $item->quantity;
+            $product_line->cost = $item->cost;
+            $product_line->bought_at = Carbon::now()->toDateTimeString();
+            $product_line->save();
+        };
+
+        $client = $invoice->client()->get()->first();
+        $invoices_id = $client->invoices()->whereNull('deleted_at')->pluck('id');
+        $invoice_item_total_cost = InvoiceItemLine::whereIn('invoice_id', $invoices_id)
+            ->groupBy('product_id')
+            ->selectRaw('product_id, SUM(cost) as cost')
+            ->get();
+        $invoice_item_total_quantity = InvoiceItemLine::whereIn('invoice_id', $invoices_id)
+            ->groupBy('product_id')
+            ->selectRaw('product_id, SUM(quantity) as quantity')
+            ->get();
+
+
         $invoice->service()
-                ->triggeredActions($request)
-                ->adjustInventory($old_invoice);
+            ->triggeredActions($request)
+            ->adjustInventory($old_invoice);
 
         event(new InvoiceWasUpdated($invoice, $invoice->company, Ninja::eventVars(auth()->user() ? auth()->user()->id : null)));
 
@@ -497,13 +538,13 @@ class InvoiceController extends BaseController
             return response(['message' => ctrans('texts.email_quota_exceeded_subject')], 400);
         }
 
-        if(in_array($request->action, ['auto_bill', 'mark_paid']) && $user->cannot('create', \App\Models\Payment::class)) {
+        if (in_array($request->action, ['auto_bill', 'mark_paid']) && $user->cannot('create', \App\Models\Payment::class)) {
             return response(['message' => ctrans('texts.not_authorized'), 'errors' => ['ids' => [ctrans('texts.not_authorized')]]], 422);
         }
 
         $invoices = Invoice::withTrashed()->whereIn('id', $this->transformKeys($ids))->company()->get();
 
-        if (! $invoices) {
+        if (!$invoices) {
             return response()->json(['message' => 'No Invoices Found']);
         }
 
@@ -542,7 +583,7 @@ class InvoiceController extends BaseController
             }, 'print.pdf', ['Content-Type' => 'application/pdf']);
         }
 
-        if($action == 'template' && $user->can('view', $invoices->first())) {
+        if ($action == 'template' && $user->can('view', $invoices->first())) {
 
             $hash_or_response = $request->boolean('send_email') ? 'email sent' : \Illuminate\Support\Str::uuid();
 
@@ -560,10 +601,10 @@ class InvoiceController extends BaseController
             return response()->json(['message' => $hash_or_response], 200);
         }
 
-        if($action == 'set_payment_link' && $request->has('subscription_id')) {
+        if ($action == 'set_payment_link' && $request->has('subscription_id')) {
 
             $invoices->each(function ($invoice) use ($user, $request) {
-                if($user->can('edit', $invoice)) {
+                if ($user->can('edit', $invoice)) {
                     $invoice->service()->setPaymentLink($request->subscription_id)->save();
                 }
             });
@@ -695,14 +736,14 @@ class InvoiceController extends BaseController
 
                 $invoice = $invoice->service()->markPaid()->save();
 
-                if (! $bulk) {
+                if (!$bulk) {
                     return $this->itemResponse($invoice);
                 }
                 break;
             case 'mark_sent':
                 $invoice->service()->markSent(true)->save();
 
-                if (! $bulk) {
+                if (!$bulk) {
                     return $this->itemResponse($invoice);
                 }
                 break;
@@ -715,14 +756,14 @@ class InvoiceController extends BaseController
             case 'restore':
                 $this->invoice_repo->restore($invoice);
 
-                if (! $bulk) {
+                if (!$bulk) {
                     return $this->itemResponse($invoice);
                 }
                 break;
             case 'archive':
                 $this->invoice_repo->archive($invoice);
 
-                if (! $bulk) {
+                if (!$bulk) {
                     return $this->itemResponse($invoice);
                 }
                 break;
@@ -730,13 +771,13 @@ class InvoiceController extends BaseController
 
                 $this->invoice_repo->delete($invoice);
 
-                if (! $bulk) {
+                if (!$bulk) {
                     return $this->itemResponse($invoice);
                 }
                 break;
             case 'cancel':
                 $invoice = $invoice->service()->handleCancellation()->save();
-                if (! $bulk) {
+                if (!$bulk) {
                     $this->itemResponse($invoice);
                 }
                 break;
@@ -749,7 +790,7 @@ class InvoiceController extends BaseController
 
                 BulkInvoiceJob::dispatch($invoice, $template);
 
-                if (! $bulk) {
+                if (!$bulk) {
                     return response()->json(['message' => 'email sent'], 200);
                 }
                 break;
@@ -806,7 +847,7 @@ class InvoiceController extends BaseController
     {
         $invitation = $this->invoice_repo->getInvitationByKey($invitation_key);
 
-        if (! $invitation) {
+        if (!$invitation) {
             return response()->json(['message' => 'no record found'], 400);
         }
 
@@ -814,7 +855,7 @@ class InvoiceController extends BaseController
 
         App::setLocale($invitation->contact->preferredLocale());
 
-        $file_name = $invoice->numberFormatter().'.pdf';
+        $file_name = $invoice->numberFormatter() . '.pdf';
 
         $file = (new \App\Jobs\Entity\CreateRawPdf($invitation))->handle();
 
@@ -876,7 +917,7 @@ class InvoiceController extends BaseController
     {
         $invitation = $this->invoice_repo->getInvitationByKey($invitation_key);
 
-        if (! $invitation) {
+        if (!$invitation) {
             return response()->json(['message' => 'no record found'], 400);
         }
 
@@ -946,7 +987,6 @@ class InvoiceController extends BaseController
         return response()->streamDownload(function () use ($invoice) {
             echo $invoice->service()->getInvoiceDeliveryNote($invoice, $invoice->invitations->first()->contact);
         }, $invoice->getDeliveryNoteName(), ['Content-Type' => 'application/pdf']);
-
     }
 
     /**
@@ -1002,7 +1042,7 @@ class InvoiceController extends BaseController
     public function upload(UploadInvoiceRequest $request, Invoice $invoice)
     {
 
-        if (! $this->checkFeature(Account::FEATURE_DOCUMENTS)) {
+        if (!$this->checkFeature(Account::FEATURE_DOCUMENTS)) {
             return $this->featureFailure();
         }
 
