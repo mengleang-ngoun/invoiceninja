@@ -46,6 +46,7 @@ use App\Utils\Ninja;
 use App\Utils\Traits\MakesHash;
 use App\Utils\Traits\SavesDocuments;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Casts\Json;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Storage;
@@ -224,18 +225,15 @@ class InvoiceController extends BaseController
 
         $invoice = $this->invoice_repo->save($request->all(), InvoiceFactory::create($user->company()->id, $user->id));
 
-        InvoiceItemLine::where('invoice_id', $invoice->id)->delete();
-        foreach ($invoice->line_items as $item) {
-            $product = Product::where('product_key', $item->product_key)->get()->first();
-            $product_line = InvoiceItemLine::firstOrCreate([
-                'invoice_id' => $invoice->id,
-                'product_id' => $product->id
-            ]);
-            $product_line->quantity = $item->quantity;
-            $product_line->cost = $item->cost;
-            $product_line->bought_at = Carbon::now()->toDateTimeString();
-            $product_line->save();
-        };
+        $client = $invoice->client()->get()->first();
+        $invoices = $client->invoices()->whereNull('deleted_at')->get();
+        $line_items = $invoices->pluck('line_items')->flatten();
+
+        $total_line_total_cost = $line_items
+            ->groupBy("product_key")
+            ->map(function ($product) {
+                return $product->sum('line_total');
+            });
 
         $invoice = $invoice->service()
             ->fillDefaults()
@@ -431,30 +429,15 @@ class InvoiceController extends BaseController
 
         $invoice = $this->invoice_repo->save($request->all(), $invoice);
 
-        InvoiceItemLine::where('invoice_id', $invoice->id)->delete();
-        foreach ($invoice->line_items as $item) {
-            $product = Product::where('product_key', $item->product_key)->get()->first();
-            $product_line = InvoiceItemLine::firstOrCreate([
-                'invoice_id' => $invoice->id,
-                'product_id' => $product->id
-            ]);
-            $product_line->quantity = $item->quantity;
-            $product_line->cost = $item->cost;
-            $product_line->bought_at = Carbon::now()->toDateTimeString();
-            $product_line->save();
-        };
-
         $client = $invoice->client()->get()->first();
-        $invoices_id = $client->invoices()->whereNull('deleted_at')->pluck('id');
-        $invoice_item_total_cost = InvoiceItemLine::whereIn('invoice_id', $invoices_id)
-            ->groupBy('product_id')
-            ->selectRaw('product_id, SUM(cost) as cost')
-            ->get();
-        $invoice_item_total_quantity = InvoiceItemLine::whereIn('invoice_id', $invoices_id)
-            ->groupBy('product_id')
-            ->selectRaw('product_id, SUM(quantity) as quantity')
-            ->get();
+        $invoices = $client->invoices()->whereNull('deleted_at')->get();
+        $line_items = $invoices->pluck('line_items')->flatten();
 
+        $total_line_total_cost = $line_items
+            ->groupBy("product_key")
+            ->map(function ($product) {
+                return $product->sum('line_total');
+            });
 
         $invoice->service()
             ->triggeredActions($request)
