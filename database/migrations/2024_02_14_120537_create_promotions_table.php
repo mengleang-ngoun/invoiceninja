@@ -13,13 +13,12 @@ return new class extends Migration
     {
         Schema::create('promotions', function (Blueprint $table) {
             $table->id();
-            $table->string('promotion_name');
             $table->unsignedInteger('product_id');
-            $table->decimal('purchase_amount', 20, 6);
+            $table->decimal('purchase_amount', 20, 6)->nullable();
+            $table->decimal('purchase_quantity', 20, 6)->nullable();
+            $table->string("from");
             $table->unsignedInteger('offer_product_id');
             $table->decimal('offer_quantity', 20, 6);
-            $table->date("start_date");
-            $table->date("end_date");
             $table->timestamps();
 
             $table->foreign('product_id')->references('id')->on('products')->onDelete('cascade');
