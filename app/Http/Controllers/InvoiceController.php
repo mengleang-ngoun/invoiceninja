@@ -225,15 +225,10 @@ class InvoiceController extends BaseController
 
         $invoice = $this->invoice_repo->save($request->all(), InvoiceFactory::create($user->company()->id, $user->id));
 
-        $client = $invoice->client()->get()->first();
-        $invoices = $client->invoices()->whereNull('deleted_at')->get();
-        $line_items = $invoices->pluck('line_items')->flatten();
+        $promotion_line_items = $invoice->service()->promotion($request['line_items'], $invoice->id);
+        $request['line_items'] = $promotion_line_items;
 
-        $total_line_total_cost = $line_items
-            ->groupBy("product_key")
-            ->map(function ($product) {
-                return $product->sum('line_total');
-            });
+        $invoice = $this->invoice_repo->save($request->all(), $invoice);
 
         $invoice = $invoice->service()
             ->fillDefaults()
@@ -425,19 +420,12 @@ class InvoiceController extends BaseController
             return response()->json(['message' => ctrans('texts.locked_invoice')], 422);
         }
 
+        $promotion_line_items = $invoice->service()->promotion($request['line_items'], $invoice->id);
+        $request['line_items'] = $promotion_line_items;
+
         $old_invoice = $invoice->line_items;
 
         $invoice = $this->invoice_repo->save($request->all(), $invoice);
-
-        $client = $invoice->client()->get()->first();
-        $invoices = $client->invoices()->whereNull('deleted_at')->get();
-        $line_items = $invoices->pluck('line_items')->flatten();
-
-        $total_line_total_cost = $line_items
-            ->groupBy("product_key")
-            ->map(function ($product) {
-                return $product->sum('line_total');
-            });
 
         $invoice->service()
             ->triggeredActions($request)

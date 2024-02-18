@@ -24,11 +24,15 @@ class Promotion extends Model
         'updated_at'
     ];
 
-    public function prouduct(){
-        return $this->hasOne(Product::class, 'product_id');
+    public function product(){
+        return $this->belongsTo(Product::class, 'product_id');
     }
 
-    public function offerProuduct(){
-        return $this->hasOne(Product::class, 'offer_product_id');
+    public function offerProduct(){
+        return $this->belongsTo(Product::class, 'offer_product_id');
+    }
+
+    public function promotionHistory(){
+        return $this->hasMany(HistoryPromotion::class);
     }
 }
