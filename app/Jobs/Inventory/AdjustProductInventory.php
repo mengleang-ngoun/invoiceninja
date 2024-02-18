@@ -127,8 +127,6 @@ class AdjustProductInventory implements ShouldQueue
         })->each(function ($i) {
             $p = Product::query()->where('product_key', $i->product_key)->where('company_id', $this->company->id)->first();
 
-            var_dump($p->toJson());
-
             if ($p) {
                 $p->in_stock_quantity += $i->quantity;
 
