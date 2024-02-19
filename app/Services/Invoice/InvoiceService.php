@@ -727,12 +727,17 @@ class InvoiceService
         ];
     }
 
-    public function line_total($invoices, $request_line_items, $key)
+    public function line_total($invoices, $request_line_items, $offered_invoices_line_item, $key)
     {
         $line_items = $invoices->pluck('line_items')->flatten();
         $line_items = $line_items->concat($request_line_items);
-        return $line_items
-            ->groupBy('product_key')
+
+        $line_items = $line_items->filter(function ($line_item) use ($offered_invoices_line_item) {
+            $line_item = (array)$line_item;
+            return !$offered_invoices_line_item->contains($line_item['custom_value1']);
+        });
+
+        return $line_items->groupBy('product_key')
             ->map(function ($product) use ($key) {
                 return $product->sum($key);
             });
@@ -747,10 +752,14 @@ class InvoiceService
 
             $promotion_item_key = $promotion['product_key'];
 
+            $invoices = $this->invoice->client()->get()->first()->invoices()
+                ->whereBetween('date', [Carbon::parse($promotion['start_date']), Carbon::parse($promotion['end_date'])])
+                ->whereNull('deleted_at')
+                ->get();
+
             $offered_item = HistoryPromotion::where(
                 ['promotion_id' => $promotion['id'], 'invoice_id' => $current_invoice_id]
             )->get()->first();
-
 
             if ($offered_item) {
                 $line_items = $line_items->filter(function ($request_line_item) use ($offered_item) {
@@ -758,22 +767,27 @@ class InvoiceService
                 });
             }
 
-            $invoices = $this->invoice->client()->get()->first()->invoices()
-                ->whereNotIn('id', [$current_invoice_id])
-                ->whereNull('deleted_at')
-                ->whereBetween('date', [Carbon::parse($promotion['start_date']), Carbon::parse($promotion['end_date'])])
+            $offered_invoices = HistoryPromotion::where(['promotion_id' => $promotion['id']])
+                ->whereIn('invoice_id', $invoices->pluck('id')->all())
                 ->get();
 
-            $total_quantity = $this->line_total($invoices, $line_items->toArray(), 'quantity');
+            $offered_invoices_line_item = $offered_invoices->pluck('line_item');
+            $offered_invoices_quantity = $offered_invoices->sum('quantity');
+
+            $invoices = $invoices->whereNotIn('id', [$current_invoice_id]);
+
+            $total_quantity = $this->line_total($invoices, $line_items->toArray(), $offered_invoices_line_item, 'quantity');
 
             if ($total_quantity->has($promotion_item_key)) {
 
                 $promotion_quotient = intdiv($total_quantity[$promotion_item_key], $promotion['purchase_quantity']);
                 $promotion_remainder = $total_quantity[$promotion_item_key] % $promotion['purchase_quantity'];
+                $promotion_remainder = $promotion['purchase_quantity'] - $promotion_remainder;
 
                 $product_offer_quantity = $promotion_quotient * $promotion['offer_quantity'];
+                $product_offer_quantity -= $offered_invoices_quantity;
 
-                if ($promotion_quotient > 0) {
+                if ($product_offer_quantity > 0) {
                     $offer_item = $this->create_line_item(
                         $promotion_item_key,
                         $product_offer_quantity,
@@ -785,7 +799,8 @@ class InvoiceService
                             'promotion_id' => $promotion['id'], 'invoice_id' => $current_invoice_id
                         ],
                         [
-                            'line_item' => $offer_item['custom_value1']
+                            'line_item' => $offer_item['custom_value1'],
+                            'quantity' => $product_offer_quantity
                         ]
                     );
                 } else {

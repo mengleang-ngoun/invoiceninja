@@ -13,7 +13,8 @@ class HistoryPromotion extends Model
         'id',
         'promotion_id',
         'invoice_id',
-        'line_item'
+        'line_item',
+        'quantity'
     ];
 
     protected $hidden = [

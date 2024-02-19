@@ -18,6 +18,7 @@ return new class extends Migration
             $table->foreignIdFor(Promotion::class);
             $table->unsignedInteger('invoice_id');
             $table->uuid('line_item');
+            $table->decimal("quantity", 20, 6);
             $table->timestamps();
 
             $table->foreign('promotion_id')->references('id')->on('promotions')->onDelete('cascade');
