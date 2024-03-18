@@ -46,6 +46,7 @@ use App\Http\Controllers\HostedMigrationController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\ImportJsonController;
 use App\Http\Controllers\InAppPurchase\AppleController;
+use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\LicenseController;
 use App\Http\Controllers\LogoutController;
@@ -418,6 +419,8 @@ Route::group(['middleware' => ['throttle:api', 'api_db', 'token_auth', 'locale']
     Route::post('promotions', [PromotionController::class, 'store']);
     Route::post('promotions/update', [PromotionController::class, 'update']);
     Route::post('promotions/delete', [PromotionController::class, 'destroy']);
+
+    Route::resource('inventories', InventoryController::class);
 });
 
 Route::post('api/v1/sms_reset', [TwilioController::class, 'generate2faResetCode'])->name('sms_reset.generate')->middleware('throttle:3,1');

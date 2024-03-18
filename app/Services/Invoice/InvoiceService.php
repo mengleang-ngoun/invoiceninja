@@ -752,8 +752,8 @@ class InvoiceService
 
             $promotion_item_key = $promotion['product_key'];
 
-            $invoices = $this->invoice->client()->get()->first()->invoices()
-                ->whereBetween('date', [Carbon::parse($promotion['start_date']), Carbon::parse($promotion['end_date'])])
+            $invoices = $this->invoice->client()->get()->first()
+                ->invoicesBetweenDate($promotion['start_date'], $promotion['end_date'])
                 ->whereNull('deleted_at')
                 ->get();
 
@@ -777,15 +777,42 @@ class InvoiceService
             $invoices = $invoices->whereNotIn('id', [$current_invoice_id]);
 
             $total_quantity = $this->line_total($invoices, $line_items->toArray(), $offered_invoices_line_item, 'quantity');
+            $total_amount = $this->line_total($invoices, $line_items->toArray(), $offered_invoices_line_item, 'line_total');
 
-            if ($total_quantity->has($promotion_item_key)) {
-
+            if ($total_quantity->has($promotion_item_key) && $promotion['purchase_quantity'] > 0) {
                 $promotion_quotient = intdiv($total_quantity[$promotion_item_key], $promotion['purchase_quantity']);
+                $product_offer_quantity = $promotion_quotient * $promotion['offer_quantity'];
+                $product_offer_quantity -= $offered_invoices_quantity;
                 $promotion_remainder = $total_quantity[$promotion_item_key] % $promotion['purchase_quantity'];
                 $promotion_remainder = $promotion['purchase_quantity'] - $promotion_remainder;
 
+                if ($product_offer_quantity > 0) {
+                    $offer_item = $this->create_line_item(
+                        $promotion_item_key,
+                        $product_offer_quantity,
+                        "Promotion"
+                    );
+                    $line_items = $line_items->concat([$offer_item]);
+                    HistoryPromotion::updateOrCreate(
+                        [
+                            'promotion_id' => $promotion['id'], 'invoice_id' => $current_invoice_id
+                        ],
+                        [
+                            'line_item' => $offer_item['custom_value1'],
+                            'quantity' => $product_offer_quantity
+                        ]
+                    );
+                } else {
+                    HistoryPromotion::where(
+                        ['promotion_id' => $promotion['id'], 'invoice_id' => $current_invoice_id]
+                    )->delete();
+                }
+            } elseif ($total_amount->has($promotion_item_key) && $promotion['purchase_amount'] > 0) {
+                $promotion_quotient = intdiv($total_amount[$promotion_item_key], $promotion['purchase_amount']);
                 $product_offer_quantity = $promotion_quotient * $promotion['offer_quantity'];
                 $product_offer_quantity -= $offered_invoices_quantity;
+                $promotion_remainder = $total_amount[$promotion_item_key] % $promotion['purchase_amount'];
+                $promotion_remainder = $promotion['purchase_amount'] - $promotion_remainder;
 
                 if ($product_offer_quantity > 0) {
                     $offer_item = $this->create_line_item(
