@@ -284,9 +284,9 @@ class BaseRepository
         }
 
         /* Update product details if necessary - if we are inside a transaction - do nothing */
-        if ($model->company->update_products && $model->id && \DB::transactionLevel() == 0) {
-            UpdateOrCreateProduct::dispatch($model->line_items, $model, $model->company);
-        }
+        // if ($model->company->update_products && $model->id && \DB::transactionLevel() == 0) {
+        //     UpdateOrCreateProduct::dispatch($model->line_items, $model, $model->company);
+        // }
 
         /* Perform model specific tasks */
         if ($model instanceof Invoice) {

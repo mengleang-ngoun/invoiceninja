@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Invoice Ninja (https://invoiceninja.com).
  *
@@ -26,6 +27,10 @@ use Illuminate\Support\Facades\Storage;
 use App\Events\Invoice\InvoiceWasArchived;
 use App\Jobs\Inventory\AdjustProductInventory;
 use App\Libraries\Currency\Conversion\CurrencyApi;
+use App\Models\HistoryPromotion;
+use App\Models\Promotion;
+use Aws\History;
+use Illuminate\Support\Str;
 
 class InvoiceService
 {
@@ -141,14 +146,14 @@ class InvoiceService
     public function updateBalance($balance_adjustment, bool $is_draft = false)
     {
         if ((bool) $this->invoice->is_deleted !== false) {
-            nlog($this->invoice->number.' is deleted returning');
+            nlog($this->invoice->number . ' is deleted returning');
 
             return $this;
         }
 
         $this->invoice->balance += $balance_adjustment;
 
-        if (round($this->invoice->balance, 2) == 0 && ! $is_draft) {
+        if (round($this->invoice->balance, 2) == 0 && !$is_draft) {
             $this->invoice->status_id = Invoice::STATUS_PAID;
         }
 
@@ -303,11 +308,11 @@ class InvoiceService
     public function checkReminderStatus(): self
     {
 
-        if($this->invoice->partial == 0) {
+        if ($this->invoice->partial == 0) {
             $this->invoice->partial_due_date = null;
         }
 
-        if($this->invoice->partial == 0 && $this->invoice->balance > 0) {
+        if ($this->invoice->partial == 0 && $this->invoice->balance > 0) {
             $this->invoice->reminder1_sent = null;
             $this->invoice->reminder2_sent = null;
             $this->invoice->reminder3_sent = null;
@@ -365,13 +370,13 @@ class InvoiceService
     public function toggleFeesPaid()
     {
         $this->invoice->line_items = collect($this->invoice->line_items)
-                                     ->map(function ($item) {
-                                         if ($item->type_id == '3') {
-                                             $item->type_id = '4';
-                                         }
+            ->map(function ($item) {
+                if ($item->type_id == '3') {
+                    $item->type_id = '4';
+                }
 
-                                         return $item;
-                                     })->toArray();
+                return $item;
+            })->toArray();
 
         // $this->deletePdf();
         $this->deleteEInvoice();
@@ -387,12 +392,12 @@ class InvoiceService
         $this->invoice->invitations->each(function ($invitation) {
             try {
                 // if (Storage::disk(config('filesystems.default'))->exists($this->invoice->client->invoice_filepath($invitation).$this->invoice->numberFormatter().'.pdf')) {
-                Storage::disk(config('filesystems.default'))->delete($this->invoice->client->invoice_filepath($invitation).$this->invoice->numberFormatter().'.pdf');
+                Storage::disk(config('filesystems.default'))->delete($this->invoice->client->invoice_filepath($invitation) . $this->invoice->numberFormatter() . '.pdf');
                 // }
 
                 // if (Ninja::isHosted() && Storage::disk('public')->exists($this->invoice->client->invoice_filepath($invitation).$this->invoice->numberFormatter().'.pdf')) {
                 if (Ninja::isHosted()) {
-                    Storage::disk('public')->delete($this->invoice->client->invoice_filepath($invitation).$this->invoice->numberFormatter().'.pdf');
+                    Storage::disk('public')->delete($this->invoice->client->invoice_filepath($invitation) . $this->invoice->numberFormatter() . '.pdf');
                 }
             } catch (\Exception $e) {
                 nlog($e->getMessage());
@@ -409,12 +414,12 @@ class InvoiceService
         $this->invoice->invitations->each(function ($invitation) {
             try {
                 // if (Storage::disk(config('filesystems.default'))->exists($this->invoice->client->e_invoice_filepath($invitation).$this->invoice->getFileName("xml"))) {
-                Storage::disk(config('filesystems.default'))->delete($this->invoice->client->e_invoice_filepath($invitation).$this->invoice->getFileName("xml"));
+                Storage::disk(config('filesystems.default'))->delete($this->invoice->client->e_invoice_filepath($invitation) . $this->invoice->getFileName("xml"));
                 // }
 
                 // if (Ninja::isHosted() && Storage::disk('public')->exists($this->invoice->client->e_invoice_filepath($invitation).$this->invoice->getFileName("xml"))) {
                 if (Ninja::isHosted()) {
-                    Storage::disk('public')->delete($this->invoice->client->e_invoice_filepath($invitation).$this->invoice->getFileName("xml"));
+                    Storage::disk('public')->delete($this->invoice->client->e_invoice_filepath($invitation) . $this->invoice->getFileName("xml"));
                 }
             } catch (\Exception $e) {
                 nlog($e->getMessage());
@@ -429,16 +434,16 @@ class InvoiceService
         $balance = $this->invoice->balance;
 
         //return early if type three does not exist.
-        if (! collect($this->invoice->line_items)->contains('type_id', 3)) {
+        if (!collect($this->invoice->line_items)->contains('type_id', 3)) {
             return $this;
         }
 
         $pre_count = count($this->invoice->line_items);
 
         $items = collect($this->invoice->line_items)
-                                     ->reject(function ($item) {
-                                         return $item->type_id == '3';
-                                     })->toArray();
+            ->reject(function ($item) {
+                return $item->type_id == '3';
+            })->toArray();
 
         $this->invoice->line_items = array_values($items);
 
@@ -460,11 +465,10 @@ class InvoiceService
             // ->save();
 
             $this->invoice
-            ->ledger()
-            ->updateInvoiceBalance($adjustment * -1, 'Adjustment for removing gateway fee');
+                ->ledger()
+                ->updateInvoiceBalance($adjustment * -1, 'Adjustment for removing gateway fee');
 
             $this->invoice->client->service()->calculateBalance();
-
         }
 
         return $this;
@@ -550,24 +554,24 @@ class InvoiceService
 
         $settings = $this->invoice->client->getMergedSettings();
 
-        if (! $this->invoice->design_id) {
+        if (!$this->invoice->design_id) {
             $this->invoice->design_id = intval($this->decodePrimaryKey($settings->invoice_design_id));
         }
 
-        if (! isset($this->invoice->footer) || empty($this->invoice->footer)) {
+        if (!isset($this->invoice->footer) || empty($this->invoice->footer)) {
             $this->invoice->footer = $settings->invoice_footer;
         }
 
-        if (! isset($this->invoice->terms) || empty($this->invoice->terms)) {
+        if (!isset($this->invoice->terms) || empty($this->invoice->terms)) {
             $this->invoice->terms = $settings->invoice_terms;
         }
 
-        if (! isset($this->invoice->public_notes) || empty($this->invoice->public_notes)) {
+        if (!isset($this->invoice->public_notes) || empty($this->invoice->public_notes)) {
             $this->invoice->public_notes = $this->invoice->client->public_notes;
         }
 
         /* If client currency differs from the company default currency, then insert the client exchange rate on the model.*/
-        if (! isset($this->invoice->exchange_rate) && $this->invoice->client->currency()->id != (int) $this->invoice->company->settings->currency_id) {
+        if (!isset($this->invoice->exchange_rate) && $this->invoice->client->currency()->id != (int) $this->invoice->company->settings->currency_id) {
             $this->invoice->exchange_rate = $this->invoice->client->setExchangeRate();
         }
 
@@ -625,12 +629,11 @@ class InvoiceService
 
         $sub_id = $this->decodePrimaryKey($subscription_id);
 
-        if(Subscription::withTrashed()->where('id', $sub_id)->where('company_id', $this->invoice->company_id)->exists()) {
+        if (Subscription::withTrashed()->where('id', $sub_id)->where('company_id', $this->invoice->company_id)->exists()) {
             $this->invoice->subscription_id = $sub_id;
         }
 
         return $this;
-
     }
 
     /**
@@ -642,5 +645,198 @@ class InvoiceService
         $this->invoice->saveQuietly();
 
         return $this->invoice->fresh();
+    }
+
+
+    private function transformPromotion()
+    {
+        $promotions = Promotion::all()->map(function ($promotion) {
+            $end_date = Carbon::now()->toDateString();
+            $start_date = '';
+            if (count(explode(',', $promotion->from)) == 2) {
+                $start_date = explode(',', $promotion->from)[0];
+                $end_date = explode(',', $promotion->from)[1];
+            } else {
+                switch ($promotion->from) {
+                    case "last_7_days":
+                        $start_date = Carbon::now()->subDays(7)->toDateString();
+                        break;
+                    case "last_30_days":
+                        $start_date = Carbon::now()->subDays(30)->toDateString();
+                        break;
+                    case "last_90_days":
+                        $start_date = Carbon::now()->subDays(90)->toDateString();
+                        break;
+                    case "last_6_months":
+                        $start_date = Carbon::now()->subMonths(6)->toDateString();
+                        break;
+                    case "last_year":
+                        $start_date = Carbon::now()->subYears(1)->toDateString();
+                        break;
+                    default:
+                        echo "It's a regular day.";
+                }
+            }
+
+            return collect([
+                'id' => $promotion->id,
+                'product_key' => $promotion->product->product_key,
+                'purchase_amount' => (float) $promotion->purchase_amount,
+                'purchase_quantity' => (float) $promotion->purchase_quantity,
+                'start_date' => $start_date,
+                'end_date' => $end_date,
+                'offer_product_key' => $promotion->offerProduct->product_key,
+                'offer_quantity' => (float) $promotion->offer_quantity,
+                'promotion_history' => $promotion->promotionHistory()->pluck('invoice_id')->toArray()
+            ]);
+        });
+
+        return $promotions;
+    }
+
+    public function create_line_item($product_key, $quantity, $notes)
+    {
+        return [
+            '_id' => (string) Str::uuid(),
+            'quantity' => $quantity,
+            'cost' => 0,
+            'product_key' => $product_key,
+            'product_cost' => 0,
+            'notes' => $notes,
+            'discount' => 0,
+            'is_amount_discount' => true,
+            'tax_name1' => "",
+            'tax_rate1' => 0,
+            'tax_name2' => "",
+            'tax_rate2' => 0,
+            'tax_name3' => "",
+            'tax_rate3' => 0,
+            'sort_id' => "0",
+            'line_total' => 0,
+            'tax_amount' => 0,
+            'gross_line_total' => 0,
+            'date' => "",
+            'custom_value1' => (string) Str::uuid(),
+            'custom_value2' => "",
+            'custom_value3' => "",
+            'custom_value4' => "",
+            'type_id' => "1",
+            'tax_id' => "1",
+            'task_id' => "",
+            'expense_id' => "",
+        ];
+    }
+
+    public function line_total($invoices, $request_line_items, $offered_invoices_line_item, $key)
+    {
+        $line_items = $invoices->pluck('line_items')->flatten();
+        $line_items = $line_items->concat($request_line_items);
+
+        $line_items = $line_items->filter(function ($line_item) use ($offered_invoices_line_item) {
+            $line_item = (array)$line_item;
+            return !$offered_invoices_line_item->contains($line_item['custom_value1']);
+        });
+
+        return $line_items->groupBy('product_key')
+            ->map(function ($product) use ($key) {
+                return $product->sum($key);
+            });
+    }
+
+    public function promotion($request_line_items, $current_invoice_id)
+    {
+
+        $promotions = $this->transformPromotion();
+        $line_items = collect($request_line_items);
+        foreach ($promotions as $promotion) {
+
+            $promotion_item_key = $promotion['product_key'];
+
+            $invoices = $this->invoice->client()->get()->first()
+                ->invoicesBetweenDate($promotion['start_date'], $promotion['end_date'])
+                ->whereNull('deleted_at')
+                ->get();
+
+            $offered_item = HistoryPromotion::where(
+                ['promotion_id' => $promotion['id'], 'invoice_id' => $current_invoice_id]
+            )->get()->first();
+
+            if ($offered_item) {
+                $line_items = $line_items->filter(function ($request_line_item) use ($offered_item) {
+                    return $request_line_item['custom_value1'] != $offered_item['line_item'];
+                });
+            }
+
+            $offered_invoices = HistoryPromotion::where(['promotion_id' => $promotion['id']])
+                ->whereIn('invoice_id', $invoices->pluck('id')->all())
+                ->get();
+
+            $offered_invoices_line_item = $offered_invoices->pluck('line_item');
+            $offered_invoices_quantity = $offered_invoices->sum('quantity');
+
+            $invoices = $invoices->whereNotIn('id', [$current_invoice_id]);
+
+            $total_quantity = $this->line_total($invoices, $line_items->toArray(), $offered_invoices_line_item, 'quantity');
+            $total_amount = $this->line_total($invoices, $line_items->toArray(), $offered_invoices_line_item, 'line_total');
+
+            if ($total_quantity->has($promotion_item_key) && $promotion['purchase_quantity'] > 0) {
+                $promotion_quotient = intdiv($total_quantity[$promotion_item_key], $promotion['purchase_quantity']);
+                $product_offer_quantity = $promotion_quotient * $promotion['offer_quantity'];
+                $product_offer_quantity -= $offered_invoices_quantity;
+                $promotion_remainder = $total_quantity[$promotion_item_key] % $promotion['purchase_quantity'];
+                $promotion_remainder = $promotion['purchase_quantity'] - $promotion_remainder;
+
+                if ($product_offer_quantity > 0) {
+                    $offer_item = $this->create_line_item(
+                        $promotion_item_key,
+                        $product_offer_quantity,
+                        "Promotion"
+                    );
+                    $line_items = $line_items->concat([$offer_item]);
+                    HistoryPromotion::updateOrCreate(
+                        [
+                            'promotion_id' => $promotion['id'], 'invoice_id' => $current_invoice_id
+                        ],
+                        [
+                            'line_item' => $offer_item['custom_value1'],
+                            'quantity' => $product_offer_quantity
+                        ]
+                    );
+                } else {
+                    HistoryPromotion::where(
+                        ['promotion_id' => $promotion['id'], 'invoice_id' => $current_invoice_id]
+                    )->delete();
+                }
+            } elseif ($total_amount->has($promotion_item_key) && $promotion['purchase_amount'] > 0) {
+                $promotion_quotient = intdiv($total_amount[$promotion_item_key], $promotion['purchase_amount']);
+                $product_offer_quantity = $promotion_quotient * $promotion['offer_quantity'];
+                $product_offer_quantity -= $offered_invoices_quantity;
+                $promotion_remainder = $total_amount[$promotion_item_key] % $promotion['purchase_amount'];
+                $promotion_remainder = $promotion['purchase_amount'] - $promotion_remainder;
+
+                if ($product_offer_quantity > 0) {
+                    $offer_item = $this->create_line_item(
+                        $promotion_item_key,
+                        $product_offer_quantity,
+                        "Promotion"
+                    );
+                    $line_items = $line_items->concat([$offer_item]);
+                    HistoryPromotion::updateOrCreate(
+                        [
+                            'promotion_id' => $promotion['id'], 'invoice_id' => $current_invoice_id
+                        ],
+                        [
+                            'line_item' => $offer_item['custom_value1'],
+                            'quantity' => $product_offer_quantity
+                        ]
+                    );
+                } else {
+                    HistoryPromotion::where(
+                        ['promotion_id' => $promotion['id'], 'invoice_id' => $current_invoice_id]
+                    )->delete();
+                }
+            }
+        }
+        return $line_items;
     }
 }

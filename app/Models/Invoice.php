@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Invoice Ninja (https://invoiceninja.com).
  *
@@ -466,24 +467,23 @@ class Invoice extends BaseModel
     {
         switch ($status) {
             case self::STATUS_DRAFT:
-                return '<h5><span class="badge badge-light">'.ctrans('texts.draft').'</span></h5>';
+                return '<h5><span class="badge badge-light">' . ctrans('texts.draft') . '</span></h5>';
             case self::STATUS_SENT:
-                return '<h5><span class="badge badge-primary">'.ctrans('texts.sent').'</span></h5>';
+                return '<h5><span class="badge badge-primary">' . ctrans('texts.sent') . '</span></h5>';
             case self::STATUS_PARTIAL:
-                return '<h5><span class="badge badge-primary">'.ctrans('texts.partial').'</span></h5>';
+                return '<h5><span class="badge badge-primary">' . ctrans('texts.partial') . '</span></h5>';
             case self::STATUS_PAID:
-                return '<h5><span class="badge badge-success">'.ctrans('texts.paid').'</span></h5>';
+                return '<h5><span class="badge badge-success">' . ctrans('texts.paid') . '</span></h5>';
             case self::STATUS_CANCELLED:
-                return '<h5><span class="badge badge-secondary">'.ctrans('texts.cancelled').'</span></h5>';
+                return '<h5><span class="badge badge-secondary">' . ctrans('texts.cancelled') . '</span></h5>';
             case self::STATUS_OVERDUE:
-                return '<h5><span class="badge badge-danger">'.ctrans('texts.overdue').'</span></h5>';
+                return '<h5><span class="badge badge-danger">' . ctrans('texts.overdue') . '</span></h5>';
             case self::STATUS_UNPAID:
-                return '<h5><span class="badge badge-warning text-white">'.ctrans('texts.unpaid').'</span></h5>';
+                return '<h5><span class="badge badge-warning text-white">' . ctrans('texts.unpaid') . '</span></h5>';
             case self::STATUS_REVERSED:
-                return '<h5><span class="badge badge-info">'.ctrans('texts.reversed').'</span></h5>';
+                return '<h5><span class="badge badge-info">' . ctrans('texts.reversed') . '</span></h5>';
             default:
-                return '<h5><span class="badge badge-primary">'.ctrans('texts.sent').'</span></h5>';
-
+                return '<h5><span class="badge badge-primary">' . ctrans('texts.sent') . '</span></h5>';
         }
     }
 
@@ -532,7 +532,7 @@ class Invoice extends BaseModel
     public function markInvitationsSent()
     {
         $this->invitations->each(function ($invitation) {
-            if (! isset($invitation->sent_date)) {
+            if (!isset($invitation->sent_date)) {
                 $invitation->load('invoice');
                 $invitation->sent_date = Carbon::now();
                 $invitation->save();
@@ -634,6 +634,11 @@ class Invoice extends BaseModel
         ];
     }
 
+    public function addMoreLineItem($line_item)
+    {
+        return collect($this->line_items)->concat([$line_item]);
+    }
+
     public function expense_documents()
     {
         $line_items = $this->line_items;
@@ -647,9 +652,9 @@ class Invoice extends BaseModel
         }
 
         return Expense::query()->whereIn('id', $this->transformKeys($expense_ids))
-                           ->where('invoice_documents', 1)
-                           ->where('company_id', $this->company_id)
-                           ->cursor();
+            ->where('invoice_documents', 1)
+            ->where('company_id', $this->company_id)
+            ->cursor();
     }
 
     public function task_documents()
@@ -665,11 +670,11 @@ class Invoice extends BaseModel
         }
 
         return Task::query()->whereIn('id', $this->transformKeys($task_ids))
-                           ->whereHas('company', function ($query) {
-                               $query->where('invoice_task_documents', 1);
-                           })
-                           ->where('company_id', $this->company_id)
-                           ->cursor();
+            ->whereHas('company', function ($query) {
+                $query->where('invoice_task_documents', 1);
+            })
+            ->where('company_id', $this->company_id)
+            ->cursor();
     }
 
     public function translate_entity()
@@ -681,7 +686,7 @@ class Invoice extends BaseModel
     {
         $tax_type  = '';
 
-        match(intval($id)) {
+        match (intval($id)) {
             Product::PRODUCT_TYPE_PHYSICAL => $tax_type = ctrans('texts.physical_goods'),
             Product::PRODUCT_TYPE_SERVICE => $tax_type = ctrans('texts.services'),
             Product::PRODUCT_TYPE_DIGITAL => $tax_type = ctrans('texts.digital_products'),
@@ -700,7 +705,7 @@ class Invoice extends BaseModel
     public function typeIdString($id)
     {
         $type = '';
-        match($id) {
+        match ($id) {
             '1' => $type = ctrans('texts.product'),
             '2' => $type = ctrans('texts.service'),
             '3' => $type = ctrans('texts.gateway_fees'),
@@ -711,7 +716,6 @@ class Invoice extends BaseModel
         };
 
         return $type;
-
     }
 
     public function reminderSchedule(): string
@@ -719,8 +723,8 @@ class Invoice extends BaseModel
         $reminder_schedule = '';
         $settings = $this->client->getMergedSettings();
 
-        $send_email_enabled =  ctrans('texts.send_email') . " " .ctrans('texts.enabled');
-        $send_email_disabled =  ctrans('texts.send_email') . " " .ctrans('texts.disabled');
+        $send_email_enabled =  ctrans('texts.send_email') . " " . ctrans('texts.enabled');
+        $send_email_disabled =  ctrans('texts.send_email') . " " . ctrans('texts.disabled');
 
         $sends_email_1 = $settings->enable_reminder2 ? $send_email_enabled : $send_email_disabled;
         $days_1 = $settings->num_days_reminder1 . " " . ctrans('texts.days');
@@ -741,26 +745,26 @@ class Invoice extends BaseModel
         $days_endless = \App\Models\RecurringInvoice::frequencyForKey($settings->endless_reminder_frequency_id);
         $label_endless = ctrans('texts.reminder_endless');
 
-        if($schedule_1 == ctrans('texts.disabled') || $settings->schedule_reminder1 == 'disabled' || $settings->schedule_reminder1 == '') {
-            $reminder_schedule .= "{$label_1}: " . ctrans('texts.disabled') ."<br>";
+        if ($schedule_1 == ctrans('texts.disabled') || $settings->schedule_reminder1 == 'disabled' || $settings->schedule_reminder1 == '') {
+            $reminder_schedule .= "{$label_1}: " . ctrans('texts.disabled') . "<br>";
         } else {
             $reminder_schedule .= "{$label_1}: {$days_1} {$schedule_1} [{$sends_email_1}]<br>";
         }
 
-        if($schedule_2 == ctrans('texts.disabled') || $settings->schedule_reminder2 == 'disabled' || $settings->schedule_reminder2 == '') {
-            $reminder_schedule .= "{$label_2}: " . ctrans('texts.disabled') ."<br>";
+        if ($schedule_2 == ctrans('texts.disabled') || $settings->schedule_reminder2 == 'disabled' || $settings->schedule_reminder2 == '') {
+            $reminder_schedule .= "{$label_2}: " . ctrans('texts.disabled') . "<br>";
         } else {
             $reminder_schedule .= "{$label_2}: {$days_2} {$schedule_2} [{$sends_email_2}]<br>";
         }
 
-        if($schedule_3 == ctrans('texts.disabled') || $settings->schedule_reminder3 == 'disabled' || $settings->schedule_reminder3 == '') {
-            $reminder_schedule .= "{$label_3}: " . ctrans('texts.disabled') ."<br>";
+        if ($schedule_3 == ctrans('texts.disabled') || $settings->schedule_reminder3 == 'disabled' || $settings->schedule_reminder3 == '') {
+            $reminder_schedule .= "{$label_3}: " . ctrans('texts.disabled') . "<br>";
         } else {
             $reminder_schedule .= "{$label_3}: {$days_3} {$schedule_3} [{$sends_email_3}]<br>";
         }
 
-        if($sends_email_endless == ctrans('texts.disabled') || $settings->endless_reminder_frequency_id == '0' || $settings->endless_reminder_frequency_id == '') {
-            $reminder_schedule .= "{$label_endless}: " . ctrans('texts.disabled') ."<br>";
+        if ($sends_email_endless == ctrans('texts.disabled') || $settings->endless_reminder_frequency_id == '0' || $settings->endless_reminder_frequency_id == '') {
+            $reminder_schedule .= "{$label_endless}: " . ctrans('texts.disabled') . "<br>";
         } else {
             $reminder_schedule .= "{$label_endless}: {$days_endless} [{$sends_email_endless}]<br>";
         }

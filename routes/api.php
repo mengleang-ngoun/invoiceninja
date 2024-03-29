@@ -10,6 +10,7 @@
 | is assigned the "api" middleware group. Enjoy building your API!
 |
 */
+
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\ActivityController;
 use App\Http\Controllers\Auth\ForgotPasswordController;
@@ -31,6 +32,7 @@ use App\Http\Controllers\CompanyLedgerController;
 use App\Http\Controllers\CompanyUserController;
 use App\Http\Controllers\ConnectedAccountController;
 use App\Http\Controllers\CreditController;
+use App\Http\Controllers\CustomizePriceController;
 use App\Http\Controllers\DesignController;
 use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\EmailController;
@@ -44,6 +46,7 @@ use App\Http\Controllers\HostedMigrationController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\ImportJsonController;
 use App\Http\Controllers\InAppPurchase\AppleController;
+use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\LicenseController;
 use App\Http\Controllers\LogoutController;
@@ -60,6 +63,7 @@ use App\Http\Controllers\PreviewController;
 use App\Http\Controllers\PreviewPurchaseOrderController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\PromotionController;
 use App\Http\Controllers\ProtectedDownloadController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\QuoteController;
@@ -115,6 +119,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\VendorController;
 use App\Http\Controllers\WebCronController;
 use App\Http\Controllers\WebhookController;
+use App\Models\Promotion;
 use App\PaymentDrivers\PayPalPPCPPaymentDriver;
 use Illuminate\Support\Facades\Route;
 
@@ -270,6 +275,10 @@ Route::group(['middleware' => ['throttle:api', 'api_db', 'token_auth', 'locale']
     Route::post('products/bulk', [ProductController::class, 'bulk'])->name('products.bulk');
     Route::put('products/{product}/upload', [ProductController::class, 'upload']);
 
+    Route::post('customize_price', [CustomizePriceController::class, 'create']);
+    Route::get('customize_price/{client_id}', [CustomizePriceController::class, 'get']);
+    Route::delete('customize_price', [CustomizePriceController::class, 'delete']);
+
     Route::resource('projects', ProjectController::class); // name = (projects. index / create / show / update / destroy / edit
     Route::post('projects/bulk', [ProjectController::class, 'bulk'])->name('projects.bulk');
     Route::put('projects/{project}/upload', [ProjectController::class, 'upload'])->name('projects.upload');
@@ -405,6 +414,13 @@ Route::group(['middleware' => ['throttle:api', 'api_db', 'token_auth', 'locale']
     Route::post('yodlee/status/{account_number}', [YodleeController::class, 'accountStatus']); // @todo @turbo124 check route-path?!
 
     Route::get('nordigen/institutions', [NordigenController::class, 'institutions'])->name('nordigen.institutions');
+
+    Route::get('promotions', [PromotionController::class, 'index']);
+    Route::post('promotions', [PromotionController::class, 'store']);
+    Route::post('promotions/update', [PromotionController::class, 'update']);
+    Route::post('promotions/delete', [PromotionController::class, 'destroy']);
+
+    Route::resource('inventories', InventoryController::class);
 });
 
 Route::post('api/v1/sms_reset', [TwilioController::class, 'generate2faResetCode'])->name('sms_reset.generate')->middleware('throttle:3,1');
