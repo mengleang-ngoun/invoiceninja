@@ -129,10 +129,5 @@ class AppServiceProvider extends ServiceProvider
         if (Ninja::isHosted()) {
             $this->app->register(\App\Providers\BroadcastServiceProvider::class);
         }
-
-        Event::listen(MigrationsStarted::class, function (){
-            DB::statement('SET SESSION sql_require_primary_key=0');
-        });
-        
     }
 }
