@@ -29,6 +29,9 @@ use App\Http\Middleware\SetDomainNameDb;
 use Illuminate\Queue\Events\JobProcessing;
 use App\Helpers\Mail\Office365MailTransport;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Database\Events\MigrationsEnded;
+use Illuminate\Database\Events\MigrationsStarted;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -126,5 +129,17 @@ class AppServiceProvider extends ServiceProvider
         if (Ninja::isHosted()) {
             $this->app->register(\App\Providers\BroadcastServiceProvider::class);
         }
+
+        Event::listen(MigrationsStarted::class, function (){
+            if (env('ALLOW_DISABLED_PK')) {
+                DB::statement('SET SESSION sql_require_primary_key=0');
+            }
+        });
+        
+        Event::listen(MigrationsEnded::class, function (){
+            if (env('ALLOW_DISABLED_PK')) {
+                DB::statement('SET SESSION sql_require_primary_key=1');
+            }
+        });
     }
 }
